@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <h2 class="text-center mb-4 text-primary">Sentiment Analysis</h2>
+        <div class="card shadow-lg" style="border-radius: 12px;">
+            <div class="card-body">
+                <form id="sentimentForm">
+                    <div class="mb-3">
+                        <label for="textInput" class="form-label text-dark">Enter text to analyze:</label>
+                        <textarea class="form-control" id="textInput" rows="5" required style="border-radius: 10px;"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 py-2" style="border-radius: 8px; font-size: 1.1rem;">Analyze Sentiment</button>
+                </form>
+                
+                <div id="result" class="mt-4" style="display: none;">
+                    <h4 class="text-secondary">Analysis Results:</h4>
+                    <p><strong>Sentiment:</strong> <span id="sentimentResult"></span></p>
+                    <p><strong>Polarity:</strong> <span id="polarityResult"></span> (-1 to 1, where -1 is negative, 1 is positive)</p>
+                    <p><strong>Subjectivity:</strong> <span id="subjectivityResult"></span> (0 to 1, where 0 is objective, 1 is subjective)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('sentimentForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const text = document.getElementById('textInput').value;
+    
+    fetch('/analyze_sentiment', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `text=${encodeURIComponent(text)}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('sentimentResult').textContent = data.sentiment;
+        document.getElementById('polarityResult').textContent = data.polarity;
+        document.getElementById('subjectivityResult').textContent = data.subjectivity;
+        document.getElementById('result').style.display = 'block';
+        
+        // Color code based on sentiment
+        const sentimentElement = document.getElementById('sentimentResult');
+        sentimentElement.className = '';
+        if (data.sentiment === 'positive') {
+            sentimentElement.classList.add('text-success');
+        } else if (data.sentiment === 'negative') {
+            sentimentElement.classList.add('text-danger');
+        } else {
+            sentimentElement.classList.add('text-warning');
+        }
+    })
+    .catch(error => console.error('Error:', error));
+});
+</script>
+{% endblock %}

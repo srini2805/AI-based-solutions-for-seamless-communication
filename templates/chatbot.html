@@ -1,0 +1,52 @@
+<!-- templates/chatbot.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TNEA Counselling Chatbot</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot.css') }}" />
+</head>
+<body>
+  <div class="container">
+    <h1>TNEA Counselling Assistant</h1>
+    <div class="chatbox" id="chatbox">
+      <div class="bot-message">👋 Hi! I’m your TNEA Counselling Assistant. Ask me anything about registration, cutoff, or seat allotment.</div>
+    </div>
+    <form id="chat-form">
+      <input type="text" id="user-input" placeholder="Type your question here..." autocomplete="off" />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+
+  <script>
+    const form = document.getElementById("chat-form");
+    const input = document.getElementById("user-input");
+    const chatbox = document.getElementById("chatbox");
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const msg = input.value.trim();
+      if (!msg) return;
+
+      const userDiv = document.createElement("div");
+      userDiv.className = "user-message";
+      userDiv.innerText = msg;
+      chatbox.appendChild(userDiv);
+      input.value = "";
+
+      const response = await fetch("/chatbot_response", {
+        method: "POST",
+        body: new URLSearchParams({ message: msg })
+      });
+      const data = await response.json();
+
+      const botDiv = document.createElement("div");
+      botDiv.className = "bot-message";
+      botDiv.innerText = data.response;
+      chatbox.appendChild(botDiv);
+      chatbox.scrollTop = chatbox.scrollHeight;
+    };
+  </script>
+</body>
+</html>

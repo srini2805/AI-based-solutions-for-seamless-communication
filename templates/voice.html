@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-lg">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="text-center mb-0">
+                        <i class="bi bi-mic-fill me-2"></i>Voice Assistant
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <!-- Recording Interface -->
+                    <div class="text-center mb-4">
+                        <button id="recordButton" class="btn btn-lg btn-danger rounded-circle pulse" 
+                                style="width: 100px; height: 100px;">
+                            <i class="bi bi-mic-fill fs-3"></i>
+                        </button>
+                        <p class="text-muted mt-3">
+                            Press and hold to record, release to process
+                        </p>
+                    </div>
+                    
+                    <!-- Status Messages -->
+                    <div id="statusAlert" class="alert alert-info d-flex align-items-center" style="display: none;">
+                        <div class="spinner-border spinner-border-sm me-3" role="status"></div>
+                        <span id="statusMessage" class="fw-bold"></span>
+                    </div>
+                    
+                    <!-- Error Messages -->
+                    <div id="errorAlert" class="alert alert-danger d-flex align-items-center" style="display: none;">
+                        <i class="bi bi-exclamation-triangle-fill me-3 fs-4"></i>
+                        <span id="errorMessage"></span>
+                    </div>
+                    
+                    <!-- Results Display -->
+                    <div id="resultsContainer" class="mt-4 animate__animated animate__fadeIn" style="display: none;">
+                        <div class="card border-success">
+                            <div class="card-header bg-success text-white d-flex align-items-center">
+                                <i class="bi bi-chat-left-text me-2 fs-4"></i>
+                                <span>Voice Command Results</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-2">
+                                    <strong class="text-primary">You said:</strong> 
+                                    <span id="userSpeech" class="fst-italic"></span>
+                                </p>
+                                <p class="mb-0">
+                                    <strong class="text-success">Response:</strong> 
+                                    <span id="assistantResponse" class="fw-bold"></span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-light">
+                    <small class="text-muted">
+                        <i class="bi bi-info-circle-fill me-1"></i>
+                        Try saying: "Hello", "What time is it?", or "What's your name?"
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// DOM Elements
+const recordButton = document.getElementById('recordButton');
+const statusAlert = document.getElementById('statusAlert');
+const statusMessage = document.getElementById('statusMessage');
+const errorAlert = document.getElementById('errorAlert');
+const errorMessage = document.getElementById('errorMessage');
+const resultsContainer = document.getElementById('resultsContainer');
+const userSpeech = document.getElementById('userSpeech');
+const assistantResponse = document.getElementById('assistantResponse');
+
+// Audio Variables
+let mediaRecorder;
+let audioChunks = [];
+let isRecording = false;
+
+// ======================
+// UI Functions
+// ======================
+function showStatus(message) {
+    statusMessage.textContent = message;
+    statusAlert.style.display = 'flex';
+    errorAlert.style.display = 'none';
+    resultsContainer.style.display = 'none';
+}
+
+function showError(message) {
+    errorMessage.textContent = message;
+    errorAlert.style.display = 'flex';
+    statusAlert.style.display = 'none';
+    stopRecording();
+}
+
+function showResults(text, response) {
+    userSpeech.textContent = text;
+    assistantResponse.textContent = response;
+    resultsContainer.style.display = 'block';
+    statusAlert.style.display = 'none';
+    
+    // Add animation
+    resultsContainer.classList.add('animate__fadeIn');
+}
+
+function resetUI() {
+    recordButton.innerHTML = '<i class="bi bi-mic-fill fs-3"></i>';
+    recordButton.classList.remove('btn-secondary', 'pulse');
+    recordButton.classList.add('btn-danger');
+    recordButton.disabled = false;
+    isRecording = false;
+}
+
+// ======================
+// Audio Functions
+// ======================
+async function startRecording() {
+    try {
+        // Check compatibility
+        if (!navigator.mediaDevices || !window.MediaRecorder) {
+            throw new Error("Browser doesn't support audio recording. Use Chrome or Firefox.");
+        }
+
+        showStatus("Preparing microphone...");
+        recordButton.disabled = true;
+        
+        // Get microphone access
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+                sampleRate: 16000,
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            },
+            video: false
+        });
+        
+        // Initialize recorder
+        mediaRecorder = new MediaRecorder(stream, {
+            mimeType: 'audio/webm',
+            audioBitsPerSecond: 128000
+        });
+        
+        // Reset chunks
+        audioChunks = [];
+        
+        // Handle data
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+            }
+        };
+        
+        // Start recording
+        mediaRecorder.start(100); // Collect data every 100ms
+        isRecording = true;
+        
+        // Update UI
+        showStatus("Recording... Speak now");
+        recordButton.innerHTML = '<i class="bi bi-mic-mute-fill fs-3"></i>';
+        recordButton.classList.remove('btn-danger');
+        recordButton.classList.add('btn-secondary', 'pulse');
+        recordButton.disabled = false;
+        
+    } catch (error) {
+        showError("Microphone error: " + error.message);
+    }
+}
+
+async function stopRecording() {
+    if (!isRecording) return;
+    
+    showStatus("Processing your voice...");
+    recordButton.disabled = true;
+    isRecording = false;
+    
+    try {
+        // Stop recording
+        mediaRecorder.stop();
+        
+        // Wait for final data
+        const audioBlob = await new Promise((resolve) => {
+            mediaRecorder.onstop = () => {
+                resolve(new Blob(audioChunks, { type: 'audio/webm; codecs=opus' }));
+            };
+        });
+        
+        // Process audio
+        await processAudio(audioBlob);
+        
+    } catch (error) {
+        showError("Processing error: " + error.message);
+    } finally {
+        // Clean up
+        if (mediaRecorder && mediaRecorder.stream) {
+            mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        }
+        resetUI();
+    }
+}
+
+async function processAudio(audioBlob) {
+    try {
+        showStatus("Sending to server...");
+        
+        const formData = new FormData();
+        formData.append('audio_data', audioBlob, 'recording.webm');
+        
+        const response = await fetch('/process_voice', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Server error');
+        }
+        
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        
+        showResults(data.text, data.response);
+        
+    } catch (error) {
+        console.error('Error:', error);
+        
+        // Special error handling
+        if (error.message.includes('FFmpeg') || error.message.includes('WinError 2')) {
+            showError("System configuration error. Please ensure FFmpeg is installed.");
+        } else if (error.message.includes('understand audio')) {
+            showError("Couldn't understand your voice. Please try again.");
+        } else {
+            showError("Error: " + error.message);
+        }
+    }
+}
+
+// ======================
+// Event Listeners
+// ======================
+recordButton.addEventListener('mousedown', startRecording);
+recordButton.addEventListener('mouseup', stopRecording);
+recordButton.addEventListener('mouseleave', stopRecording);
+
+// Touch support for mobile devices
+recordButton.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    startRecording();
+});
+
+recordButton.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    stopRecording();
+});
+
+// Handle window blur (stop recording if user switches tabs)
+window.addEventListener('blur', () => {
+    if (isRecording) {
+        stopRecording();
+    }
+});
+</script>
+
+<style>
+/* Pulse animation for recording button */
+.pulse {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+    70% { box-shadow: 0 0 0 15px rgba(220, 53, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+
+/* Animation for results */
+.animate__animated {
+    animation-duration: 0.5s;
+}
+</style>
+{% endblock %}
